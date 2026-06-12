@@ -6,31 +6,11 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "splash": {
-      "backgroundColor": "#fffaf0"
-    },
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "org.wikiwalker.app"
-    },
+    "splash": { "backgroundColor": "#fffaf0" },
+    "ios": { "supportsTablet": true, "bundleIdentifier": "org.wikiwalker.app" },
     "plugins": [
-      [
-        "expo-location",
-        {
-          "locationWhenInUsePermission": "wiki-walker nutzt deinen Standort, um Orte in deiner Nähe zu finden."
-        }
-      ]
+      ["expo-location", { "locationWhenInUsePermission": "wiki-walker nutzt deinen Standort, um Orte in deiner Nähe zu finden." }]
     ],
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
-        "backgroundColor": "#7c8a64"
-      },
-      "permissions": [
-        "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION"
-      ],
-      "package": "org.wikiwalker.app"
-    }
+    "android": { "adaptiveIcon": { "foregroundImage": "./assets/icon.png", "backgroundColor": "#7c8a64" } }
   }
 }

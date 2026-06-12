@@ -34,15 +34,59 @@ html,body,#map{height:100%;margin:0;padding:0;background:#efe4d2;}
 .leaflet-control-attribution{font-size:9px;background:rgba(255,255,255,0.7);}
 </style></head><body><div id="map"></div>
 <script>
-var map=L.map('map',{zoomControl:false}).setView([47.66119,10.347],14);
+var map=L.map('map',{zoomControl:false,doubleClickZoom:false,zoomSnap:0}).setView([47.66119,10.347],14);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(map);
 var poiLayer=L.layerGroup().addTo(map),mineLayer=L.layerGroup().addTo(map),userMarker=null,track=null;
 function send(o){if(window.ReactNativeWebView){window.ReactNativeWebView.postMessage(JSON.stringify(o));}}
 function region(){var c=map.getCenter(),b=map.getBounds();send({type:'region',lat:c.lat,lon:c.lng,latD:Math.abs(b.getNorth()-b.getSouth()),lonD:Math.abs(b.getEast()-b.getWest()),zoom:map.getZoom()});}
-map.on('moveend',region);
+var suppressRegion=false;
+map.on('moveend',function(){if(!suppressRegion)region();});
 map.on('click',function(e){send({type:'tap',lat:e.latlng.lat,lon:e.latlng.lng});});
-window.setPois=function(list){poiLayer.clearLayers();list.forEach(function(p){var ic=L.divIcon({className:'',iconSize:[28,28],iconAnchor:[14,14],html:'<div class="pin" style="background:'+p.color+'"><div class="dot"></div></div>'});var m=L.marker([p.lat,p.lon],{icon:ic});m.on('click',function(){send({type:'poi',id:p.id});});poiLayer.addLayer(m);});};
-window.setMine=function(list){mineLayer.clearLayers();list.forEach(function(p){var ic=L.divIcon({className:'',iconSize:[28,28],iconAnchor:[14,14],html:'<div class="pin" style="background:#cf9a40"><div class="dot"></div></div>'});var m=L.marker([p.lat,p.lon],{icon:ic});m.on('click',function(){send({type:'mine',id:p.id});});mineLayer.addLayer(m);});};
+(function(){
+  var cont=map.getContainer();
+  var lastTapEnd=0,zooming=false,startY=0,startZoom=0;
+  var tStart=0,tMoved=false,tx=0,ty=0;
+  cont.addEventListener('touchstart',function(e){
+    if(e.touches.length!==1){if(zooming){zooming=false;map.dragging.enable();suppressRegion=false;}return;}
+    var now=Date.now(),t=e.touches[0];
+    if(now-lastTapEnd<300&&!zooming){
+      zooming=true;startY=t.clientY;startZoom=map.getZoom();
+      suppressRegion=true;map.dragging.disable();e.preventDefault();
+    }else{tStart=now;tMoved=false;tx=t.clientX;ty=t.clientY;}
+  },{passive:false});
+  cont.addEventListener('touchmove',function(e){
+    if(e.touches.length!==1)return;
+    var t=e.touches[0];
+    if(zooming){
+      var dy=t.clientY-startY;          // runter (dy>0) = rein, hoch (dy<0) = raus
+      var z=startZoom+dy*0.02;
+      if(z<2)z=2;if(z>19)z=19;
+      map.setZoom(z,{animate:false});
+      e.preventDefault();
+    }else if(Math.abs(t.clientX-tx)>10||Math.abs(t.clientY-ty)>10){tMoved=true;}
+  },{passive:false});
+  cont.addEventListener('touchend',function(e){
+    if(zooming&&e.touches.length===0){
+      zooming=false;map.dragging.enable();suppressRegion=false;region();lastTapEnd=0;
+    }else if(!zooming){
+      if(!tMoved&&Date.now()-tStart<300)lastTapEnd=Date.now();else lastTapEnd=0;
+    }
+  },{passive:false});
+})();
+var GLYPHS={
+church:'<svg viewBox="0 0 24 24" width="14" height="14"><path fill="#fff" d="M11 2h2v2h2v2h-2v2.2l5 3.1V22h-4v-3a2 2 0 0 0-4 0v3H6V11.3l5-3.1V6H9V4h2z"/></svg>',
+water:'<svg viewBox="0 0 24 24" width="14" height="14"><path fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" d="M3 9c2 0 2 2 4.5 2S10 9 12 9s2 2 4.5 2S19 9 21 9M3 15c2 0 2 2 4.5 2S10 15 12 15s2 2 4.5 2S19 15 21 15"/></svg>',
+castle:'<svg viewBox="0 0 24 24" width="14" height="14"><path fill="#fff" d="M5 21V10h14v11zM5 9V6h2v2h2V6h2v2h2V6h2v2h2V6h2v3z"/></svg>',
+train:'<svg viewBox="0 0 24 24" width="14" height="14"><path fill="#fff" d="M7 3h10a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3zM6 8v3h5V8zm7 0v3h5V8zM8.5 18a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm7 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"/></svg>',
+museum:'<svg viewBox="0 0 24 24" width="14" height="14"><path fill="#fff" d="M12 2l10 5v2H2V7zM4 11h2v7H4zm4.5 0h2v7h-2zM13.5 11h2v7h-2zM18 11h2v7h-2zM2 19h20v3H2z"/></svg>',
+bridge:'<svg viewBox="0 0 24 24" width="14" height="14"><path fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" d="M3 16h18M5 16v-3M19 16v-3M5 13c0-6 14-6 14 0"/></svg>',
+mountain:'<svg viewBox="0 0 24 24" width="14" height="14"><path fill="#fff" d="M2 20L9 7l4.5 7L16 10l6 10z"/></svg>',
+town:'<svg viewBox="0 0 24 24" width="14" height="14"><path fill="#fff" d="M3 21V9l5-3 5 3v3h8v9z"/></svg>',
+monument:'<svg viewBox="0 0 24 24" width="14" height="14"><path fill="#fff" d="M10 2h4l-1.2 15h-1.6zM8 18h8v2H8zM7 20h10v2H7z"/></svg>'
+};
+var STAR='<svg viewBox="0 0 24 24" width="13" height="13"><path fill="#fff" d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9 6.8 19.6l1-5.8L3.5 9.7l5.9-.9z"/></svg>';
+window.setPois=function(list){poiLayer.clearLayers();list.forEach(function(p){var inner=GLYPHS[p.cat]||'<div class="dot"></div>';var ic=L.divIcon({className:'',iconSize:[28,28],iconAnchor:[14,14],html:'<div class="pin" style="background:'+p.color+'">'+inner+'</div>'});var m=L.marker([p.lat,p.lon],{icon:ic});m.on('click',function(){send({type:'poi',id:p.id});});poiLayer.addLayer(m);});};
+window.setMine=function(list){mineLayer.clearLayers();list.forEach(function(p){var ic=L.divIcon({className:'',iconSize:[28,28],iconAnchor:[14,14],html:'<div class="pin" style="background:#cf9a40">'+STAR+'</div>'});var m=L.marker([p.lat,p.lon],{icon:ic});m.on('click',function(){send({type:'mine',id:p.id});});mineLayer.addLayer(m);});};
 window.setUser=function(lat,lon){if(lat==null)return;if(!userMarker){userMarker=L.marker([lat,lon],{icon:L.divIcon({className:'',iconSize:[16,16],iconAnchor:[8,8],html:'<div class="udot"></div>'})}).addTo(map);}else{userMarker.setLatLng([lat,lon]);}};
 window.setTrack=function(c){if(track){map.removeLayer(track);track=null;}if(c&&c.length>1){track=L.polyline(c,{color:'#c4622f',weight:5}).addTo(map);}};
 window.flyTo=function(lat,lon,z){map.setView([lat,lon],z||map.getZoom(),{animate:true});};
@@ -120,8 +164,6 @@ export default function MapScreen() {
   const busyRef = useRef(false);
   const askTimer = useRef(null);
 
-  const [headingUp, setHeadingUp] = useState(false);
-  const headingUpRef = useRef(false);
   const headingRef = useRef(null);
   const headingSub = useRef(null);
 
@@ -174,7 +216,7 @@ export default function MapScreen() {
 
   // ---------- Karten-Daten in die WebView spiegeln ----------
   useEffect(() => {
-    if (webReady) safeInject('window.setPois&&window.setPois(' + JSON.stringify(pois.map((p) => ({ id: String(p.pageid), lat: p.lat, lon: p.lon, color: CATEGORY_COLORS[p.cat] || '#8a7d6a' }))) + ')');
+    if (webReady) safeInject('window.setPois&&window.setPois(' + JSON.stringify(pois.map((p) => ({ id: String(p.pageid), lat: p.lat, lon: p.lon, color: CATEGORY_COLORS[p.cat] || '#8a7d6a', cat: p.cat }))) + ')');
   }, [pois, webReady, safeInject]);
   useEffect(() => {
     if (webReady) safeInject('window.setMine&&window.setMine(' + JSON.stringify(myPoints.map((p) => ({ id: String(p.id), lat: p.lat, lon: p.lon }))) + ')');
@@ -330,7 +372,7 @@ export default function MapScreen() {
 
   // ---------- Kompass / Blickrichtung (nur für Sprachführung) ----------
   const updateHeadingWatch = async () => {
-    const need = guideOnRef.current || headingUpRef.current;
+    const need = guideOnRef.current;
     if (need && !headingSub.current) {
       try {
         headingSub.current = await Location.watchHeadingAsync((h) => {
@@ -342,12 +384,6 @@ export default function MapScreen() {
       headingSub.current.remove(); headingSub.current = null;
       headingRef.current = null;
     }
-  };
-  const toggleHeadingUp = () => {
-    const next = !headingUpRef.current;
-    headingUpRef.current = next;
-    setHeadingUp(next);
-    updateHeadingWatch();
   };
 
   // ---------- Guide ----------
@@ -500,8 +536,6 @@ export default function MapScreen() {
         onOpenTour={openTour}
         onRenameTour={renameTour}
         onDeleteTour={deleteTour}
-        headingUp={headingUp}
-        onToggleHeadingUp={toggleHeadingUp}
       />
 
       {editPoint && (

@@ -39,7 +39,7 @@ function Head({ title, onBack }) {
 export default function MenuSheet({
   visible, onClose, lang, onLang, onLocate, saved, onShowSaved, onRemoveSaved,
   isTracking, guideOn, onToggleTour, onToggleGuide, onPlace,
-  tours, onOpenTour, onRenameTour, onDeleteTour, headingUp, onToggleHeadingUp,
+  tours, onOpenTour, onRenameTour, onDeleteTour,
 }) {
   const [view, setView] = useState('menu');
   const savedList = Object.entries(saved || {});
@@ -184,12 +184,6 @@ export default function MenuSheet({
               </View>
             </View>
             <View style={styles.divider} />
-            <Row
-              icon="compass-outline"
-              label="Karte dreht mit"
-              sub={headingUp ? 'an – Blickrichtung oben' : 'aus – Norden oben'}
-              onPress={onToggleHeadingUp}
-            />
             <Row
               icon="history"
               label="Vergangene Touren"
