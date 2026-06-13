@@ -1,14 +1,14 @@
 // src/components/MapScreen.js
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { WebView } from 'react-native-webview';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
+import MapView, { Marker, Polyline, PROVIDER_DEFAULT, PROVIDER_GOOGLE } from 'react-native-maps';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import * as Speech from 'expo-speech';
 import * as Haptics from 'expo-haptics';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { fetchNearby, fetchSummary } from '../services/wiki';
-import { categorize, CATEGORY_COLORS } from '../data/categories';
+import { categorize, CATEGORY_COLORS, CATEGORY_ICONS } from '../data/categories';
 import * as storage from '../services/storage';
 import PoiCard from './PoiCard';
 import MenuSheet from './MenuSheet';
@@ -20,79 +20,8 @@ import { defaultTheme as T } from '../themes';
 
 const DEFAULT_REGION = { latitude: 47.66119, longitude: 10.347, latitudeDelta: 0.06, longitudeDelta: 0.06 };
 const GOLD = '#cf9a40';
-
-// OpenStreetMap-Karte (Leaflet) als HTML in der WebView – kein Schlüssel, kein Konto
-const MAP_HTML = `<!DOCTYPE html><html><head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<style>
-html,body,#map{height:100%;margin:0;padding:0;background:#efe4d2;}
-.pin{width:28px;height:28px;border-radius:14px;border:2px solid rgba(255,255,255,0.92);box-shadow:0 1px 3px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;}
-.pin .dot{width:8px;height:8px;border-radius:4px;background:#fff;}
-.udot{width:16px;height:16px;border-radius:8px;background:#2f7fae;border:3px solid #fff;box-shadow:0 0 0 6px rgba(47,127,174,0.25);}
-.leaflet-control-attribution{font-size:9px;background:rgba(255,255,255,0.7);}
-</style></head><body><div id="map"></div>
-<script>
-var map=L.map('map',{zoomControl:false,doubleClickZoom:false,zoomSnap:0}).setView([47.66119,10.347],14);
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(map);
-var poiLayer=L.layerGroup().addTo(map),mineLayer=L.layerGroup().addTo(map),userMarker=null,track=null;
-function send(o){if(window.ReactNativeWebView){window.ReactNativeWebView.postMessage(JSON.stringify(o));}}
-function region(){var c=map.getCenter(),b=map.getBounds();send({type:'region',lat:c.lat,lon:c.lng,latD:Math.abs(b.getNorth()-b.getSouth()),lonD:Math.abs(b.getEast()-b.getWest()),zoom:map.getZoom()});}
-var suppressRegion=false;
-map.on('moveend',function(){if(!suppressRegion)region();});
-map.on('click',function(e){send({type:'tap',lat:e.latlng.lat,lon:e.latlng.lng});});
-(function(){
-  var cont=map.getContainer();
-  var lastTapEnd=0,zooming=false,startY=0,startZoom=0;
-  var tStart=0,tMoved=false,tx=0,ty=0;
-  cont.addEventListener('touchstart',function(e){
-    if(e.touches.length!==1){if(zooming){zooming=false;map.dragging.enable();suppressRegion=false;}return;}
-    var now=Date.now(),t=e.touches[0];
-    if(now-lastTapEnd<300&&!zooming){
-      zooming=true;startY=t.clientY;startZoom=map.getZoom();
-      suppressRegion=true;map.dragging.disable();e.preventDefault();
-    }else{tStart=now;tMoved=false;tx=t.clientX;ty=t.clientY;}
-  },{passive:false});
-  cont.addEventListener('touchmove',function(e){
-    if(e.touches.length!==1)return;
-    var t=e.touches[0];
-    if(zooming){
-      var dy=t.clientY-startY;          // runter (dy>0) = rein, hoch (dy<0) = raus
-      var z=startZoom+dy*0.02;
-      if(z<2)z=2;if(z>19)z=19;
-      map.setZoom(z,{animate:false});
-      e.preventDefault();
-    }else if(Math.abs(t.clientX-tx)>10||Math.abs(t.clientY-ty)>10){tMoved=true;}
-  },{passive:false});
-  cont.addEventListener('touchend',function(e){
-    if(zooming&&e.touches.length===0){
-      zooming=false;map.dragging.enable();suppressRegion=false;region();lastTapEnd=0;
-    }else if(!zooming){
-      if(!tMoved&&Date.now()-tStart<300)lastTapEnd=Date.now();else lastTapEnd=0;
-    }
-  },{passive:false});
-})();
-var GLYPHS={
-church:'<svg viewBox="0 0 24 24" width="14" height="14"><path fill="#fff" d="M11 2h2v2h2v2h-2v2.2l5 3.1V22h-4v-3a2 2 0 0 0-4 0v3H6V11.3l5-3.1V6H9V4h2z"/></svg>',
-water:'<svg viewBox="0 0 24 24" width="14" height="14"><path fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" d="M3 9c2 0 2 2 4.5 2S10 9 12 9s2 2 4.5 2S19 9 21 9M3 15c2 0 2 2 4.5 2S10 15 12 15s2 2 4.5 2S19 15 21 15"/></svg>',
-castle:'<svg viewBox="0 0 24 24" width="14" height="14"><path fill="#fff" d="M5 21V10h14v11zM5 9V6h2v2h2V6h2v2h2V6h2v2h2V6h2v3z"/></svg>',
-train:'<svg viewBox="0 0 24 24" width="14" height="14"><path fill="#fff" d="M7 3h10a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3zM6 8v3h5V8zm7 0v3h5V8zM8.5 18a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm7 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"/></svg>',
-museum:'<svg viewBox="0 0 24 24" width="14" height="14"><path fill="#fff" d="M12 2l10 5v2H2V7zM4 11h2v7H4zm4.5 0h2v7h-2zM13.5 11h2v7h-2zM18 11h2v7h-2zM2 19h20v3H2z"/></svg>',
-bridge:'<svg viewBox="0 0 24 24" width="14" height="14"><path fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" d="M3 16h18M5 16v-3M19 16v-3M5 13c0-6 14-6 14 0"/></svg>',
-mountain:'<svg viewBox="0 0 24 24" width="14" height="14"><path fill="#fff" d="M2 20L9 7l4.5 7L16 10l6 10z"/></svg>',
-town:'<svg viewBox="0 0 24 24" width="14" height="14"><path fill="#fff" d="M3 21V9l5-3 5 3v3h8v9z"/></svg>',
-monument:'<svg viewBox="0 0 24 24" width="14" height="14"><path fill="#fff" d="M10 2h4l-1.2 15h-1.6zM8 18h8v2H8zM7 20h10v2H7z"/></svg>'
-};
-var STAR='<svg viewBox="0 0 24 24" width="13" height="13"><path fill="#fff" d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9 6.8 19.6l1-5.8L3.5 9.7l5.9-.9z"/></svg>';
-window.setPois=function(list){poiLayer.clearLayers();list.forEach(function(p){var inner=GLYPHS[p.cat]||'<div class="dot"></div>';var ic=L.divIcon({className:'',iconSize:[28,28],iconAnchor:[14,14],html:'<div class="pin" style="background:'+p.color+'">'+inner+'</div>'});var m=L.marker([p.lat,p.lon],{icon:ic});m.on('click',function(){send({type:'poi',id:p.id});});poiLayer.addLayer(m);});};
-window.setMine=function(list){mineLayer.clearLayers();list.forEach(function(p){var ic=L.divIcon({className:'',iconSize:[28,28],iconAnchor:[14,14],html:'<div class="pin" style="background:#cf9a40">'+STAR+'</div>'});var m=L.marker([p.lat,p.lon],{icon:ic});m.on('click',function(){send({type:'mine',id:p.id});});mineLayer.addLayer(m);});};
-window.setUser=function(lat,lon){if(lat==null)return;if(!userMarker){userMarker=L.marker([lat,lon],{icon:L.divIcon({className:'',iconSize:[16,16],iconAnchor:[8,8],html:'<div class="udot"></div>'})}).addTo(map);}else{userMarker.setLatLng([lat,lon]);}};
-window.setTrack=function(c){if(track){map.removeLayer(track);track=null;}if(c&&c.length>1){track=L.polyline(c,{color:'#c4622f',weight:5}).addTo(map);}};
-window.flyTo=function(lat,lon,z){map.setView([lat,lon],z||map.getZoom(),{animate:true});};
-setTimeout(region,500);
-true;
-</script></body></html>`;
+// iOS = Apple Karten (kein Schlüssel), Android = Google Maps (API-Key in app.json)
+const MAP_PROVIDER = Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT;
 
 function distMeters(a, b) {
   const R = 6371000, toR = Math.PI / 180;
@@ -118,16 +47,51 @@ function dirWord(rel, de) {
   return a > 0 ? (de ? 'Rechts von dir' : 'To your right') : (de ? 'Links von dir' : 'To your left');
 }
 
+// Pin-Komponente: farbiger Kreis mit Kategorie-Symbol.
+// tracksViewChanges wird nach kurzer Zeit abgeschaltet (Performance bei vielen Markern).
+function Pin({ poi, onPress }) {
+  const [track, setTrack] = useState(true);
+  useEffect(() => { const t = setTimeout(() => setTrack(false), 1500); return () => clearTimeout(t); }, []);
+  const color = CATEGORY_COLORS[poi.cat] || '#8a7d6a';
+  const icon = CATEGORY_ICONS[poi.cat];
+  return (
+    <Marker
+      coordinate={{ latitude: poi.lat, longitude: poi.lon }}
+      onPress={onPress}
+      tracksViewChanges={track}
+      anchor={{ x: 0.5, y: 0.5 }}
+    >
+      <View style={[styles.pin, { backgroundColor: color }]}>
+        {icon ? <MaterialCommunityIcons name={icon} size={15} color="#fff" /> : <View style={styles.pinDot} />}
+      </View>
+    </Marker>
+  );
+}
+function MyPin({ point, onPress }) {
+  const [track, setTrack] = useState(true);
+  useEffect(() => { const t = setTimeout(() => setTrack(false), 1500); return () => clearTimeout(t); }, []);
+  return (
+    <Marker
+      coordinate={{ latitude: point.lat, longitude: point.lon }}
+      onPress={onPress}
+      tracksViewChanges={track}
+      anchor={{ x: 0.5, y: 0.5 }}
+    >
+      <View style={[styles.pin, { backgroundColor: GOLD }]}>
+        <MaterialCommunityIcons name="star" size={15} color="#fff" />
+      </View>
+    </Marker>
+  );
+}
+
 export default function MapScreen() {
-  const webRef = useRef(null);
-  const [webReady, setWebReady] = useState(false);
+  const mapRef = useRef(null);
   const reqId = useRef(0);
   const lastMarkerTap = useRef(0);
   const regionRef = useRef(DEFAULT_REGION);
   const prevRegionRef = useRef(null);
   const poisRef = useRef([]);
   const lastLoaded = useRef(null);
-  const zoomRef = useRef(14);
 
   const [pois, setPois] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -164,12 +128,11 @@ export default function MapScreen() {
   const busyRef = useRef(false);
   const askTimer = useRef(null);
 
+  const [headingUp, setHeadingUp] = useState(false);
+  const headingUpRef = useRef(false);
   const headingRef = useRef(null);
   const headingSub = useRef(null);
-
-  const safeInject = useCallback((js) => {
-    try { if (webRef.current) webRef.current.injectJavaScript(js + '; true;'); } catch (e) {}
-  }, []);
+  const lastRotRef = useRef(0);
 
   // ---------- POIs laden ----------
   const loadForRegion = useCallback(async (region) => {
@@ -193,7 +156,7 @@ export default function MapScreen() {
 
   useEffect(() => {
     loadForRegion(DEFAULT_REGION);
-    lastLoaded.current = { ...DEFAULT_REGION, zoom: 14 };
+    lastLoaded.current = DEFAULT_REGION;
     storage.getItem('wikiwalker.points', []).then((pts) => setMyPoints(pts || []));
     storage.getItem('wikiwalker.saved', {}).then((s) => { if (s) setSaved(s); });
     storage.getItem('wikiwalker.tours', []).then((list) => {
@@ -214,42 +177,23 @@ export default function MapScreen() {
     };
   }, [loadForRegion]);
 
-  // ---------- Karten-Daten in die WebView spiegeln ----------
-  useEffect(() => {
-    if (webReady) safeInject('window.setPois&&window.setPois(' + JSON.stringify(pois.map((p) => ({ id: String(p.pageid), lat: p.lat, lon: p.lon, color: CATEGORY_COLORS[p.cat] || '#8a7d6a', cat: p.cat }))) + ')');
-  }, [pois, webReady, safeInject]);
-  useEffect(() => {
-    if (webReady) safeInject('window.setMine&&window.setMine(' + JSON.stringify(myPoints.map((p) => ({ id: String(p.id), lat: p.lat, lon: p.lon }))) + ')');
-  }, [myPoints, webReady, safeInject]);
-  useEffect(() => {
-    if (webReady && userLoc) safeInject('window.setUser&&window.setUser(' + userLoc.latitude + ',' + userLoc.longitude + ')');
-  }, [userLoc, webReady, safeInject]);
-  useEffect(() => {
-    if (webReady) safeInject('window.setTrack&&window.setTrack(' + JSON.stringify(trackCoords.map((c) => [c.latitude, c.longitude])) + ')');
-  }, [trackCoords, webReady, safeInject]);
-
-  // ---------- Nachrichten aus der WebView ----------
-  const handleMessage = (e) => {
-    let m;
-    try { m = JSON.parse(e.nativeEvent.data); } catch (err) { return; }
-    if (m.type === 'region') {
-      zoomRef.current = m.zoom;
-      const region = { latitude: m.lat, longitude: m.lon, latitudeDelta: m.latD, longitudeDelta: m.lonD };
-      regionRef.current = region;
-      const last = lastLoaded.current;
-      if (last && distMeters(last, region) < 25 && Math.abs(m.zoom - (last.zoom != null ? last.zoom : m.zoom)) < 0.2) return;
-      lastLoaded.current = { ...region, zoom: m.zoom };
-      loadForRegion(region);
-    } else if (m.type === 'tap') {
-      if (placing) { addPointAt({ latitude: m.lat, longitude: m.lon }); return; }
-      if (Date.now() - lastMarkerTap.current > 300) closeCard();
-    } else if (m.type === 'poi') {
-      const p = poisRef.current.find((x) => String(x.pageid) === String(m.id));
-      if (p) selectPoi(p);
-    } else if (m.type === 'mine') {
-      const pt = myPoints.find((x) => String(x.id) === String(m.id));
-      if (pt) { lastMarkerTap.current = Date.now(); setEditPoint({ ...pt }); }
+  // ---------- Karten-Ereignisse ----------
+  const onRegionChange = (region) => {
+    regionRef.current = region;
+    const last = lastLoaded.current;
+    if (last) {
+      const moved = distMeters(last, region);
+      const zoomChange = Math.abs(region.latitudeDelta - last.latitudeDelta) / last.latitudeDelta;
+      if (moved < 25 && zoomChange < 0.15) return;
     }
+    lastLoaded.current = region;
+    loadForRegion(region);
+  };
+  const onMapPress = (e) => {
+    const c = e.nativeEvent && e.nativeEvent.coordinate;
+    if (!c) return;
+    if (placing) { addPointAt(c); return; }
+    if (Date.now() - lastMarkerTap.current > 300) closeCard();
   };
 
   // ---------- Standort ----------
@@ -260,15 +204,20 @@ export default function MapScreen() {
     const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
     const loc = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
     setUserLoc(loc);
-    safeInject('window.flyTo&&window.flyTo(' + loc.latitude + ',' + loc.longitude + ',15)');
+    mapRef.current?.animateToRegion({ ...loc, latitudeDelta: 0.02, longitudeDelta: 0.02 }, 600);
   };
 
   // ---------- POI auswählen / schließen ----------
   const selectPoi = (poi) => {
     lastMarkerTap.current = Date.now();
     if (!selected) prevRegionRef.current = regionRef.current;
-    const r = regionRef.current;
-    safeInject('window.flyTo&&window.flyTo(' + (poi.lat + r.latitudeDelta * 0.2) + ',' + poi.lon + ',' + (zoomRef.current || 15) + ')');
+    const r = regionRef.current || DEFAULT_REGION;
+    mapRef.current?.animateToRegion({
+      latitude: poi.lat + r.latitudeDelta * 0.2,
+      longitude: poi.lon,
+      latitudeDelta: r.latitudeDelta,
+      longitudeDelta: r.longitudeDelta,
+    }, 500);
     setSelected(poi);
   };
   const closeCard = () => {
@@ -370,19 +319,40 @@ export default function MapScreen() {
     setTours((prev) => { const next = prev.filter((t) => t.id !== id); storage.setItem('wikiwalker.tours', next); return next; });
   const openTour = (t) => { setMenuOpen(false); setTimeout(() => setTour(t), 320); };
 
-  // ---------- Kompass / Blickrichtung (nur für Sprachführung) ----------
+  // ---------- Kompass / Blickrichtung (Sprachführung + optional Kartendrehung) ----------
   const updateHeadingWatch = async () => {
-    const need = guideOnRef.current;
+    const need = guideOnRef.current || headingUpRef.current;
     if (need && !headingSub.current) {
       try {
         headingSub.current = await Location.watchHeadingAsync((h) => {
           const deg = (h.trueHeading != null && h.trueHeading >= 0) ? h.trueHeading : h.magHeading;
           headingRef.current = deg;
+          if (headingUpRef.current && mapRef.current) {
+            let d = Math.abs(deg - lastRotRef.current);
+            d = Math.min(d, 360 - d);
+            if (d > 4) {
+              lastRotRef.current = deg;
+              mapRef.current.animateCamera({ heading: deg }, { duration: 200 });
+            }
+          }
         });
       } catch (e) { /* Kompass nicht verfügbar */ }
     } else if (!need && headingSub.current) {
       headingSub.current.remove(); headingSub.current = null;
       headingRef.current = null;
+    }
+  };
+  const toggleHeadingUp = () => {
+    const next = !headingUpRef.current;
+    headingUpRef.current = next;
+    setHeadingUp(next);
+    updateHeadingWatch();
+    if (!next) {
+      lastRotRef.current = 0;
+      mapRef.current?.animateCamera({ heading: 0 }, { duration: 300 }); // zurück auf Norden
+    } else if (headingRef.current != null) {
+      lastRotRef.current = headingRef.current;
+      mapRef.current?.animateCamera({ heading: headingRef.current }, { duration: 300 });
     }
   };
 
@@ -466,18 +436,32 @@ export default function MapScreen() {
   // ---------- Render ----------
   return (
     <View style={styles.root}>
-      <WebView
-        ref={webRef}
+      <MapView
+        ref={mapRef}
+        provider={MAP_PROVIDER}
         style={StyleSheet.absoluteFill}
-        originWhitelist={['*']}
-        source={{ html: MAP_HTML }}
-        javaScriptEnabled
-        domStorageEnabled
-        scrollEnabled={false}
-        overScrollMode="never"
-        onLoadEnd={() => setWebReady(true)}
-        onMessage={handleMessage}
-      />
+        initialRegion={DEFAULT_REGION}
+        showsUserLocation
+        showsMyLocationButton={false}
+        showsCompass={false}
+        toolbarEnabled={false}
+        onRegionChangeComplete={onRegionChange}
+        onPress={onMapPress}
+      >
+        {pois.map((p) => (
+          <Pin key={'poi' + p.pageid} poi={p} onPress={() => selectPoi(p)} />
+        ))}
+        {myPoints.map((p) => (
+          <MyPin
+            key={'mine' + p.id}
+            point={p}
+            onPress={() => { lastMarkerTap.current = Date.now(); setEditPoint({ ...p }); }}
+          />
+        ))}
+        {trackCoords.length > 1 && (
+          <Polyline coordinates={trackCoords} strokeColor={T.accent} strokeWidth={5} />
+        )}
+      </MapView>
 
       <View style={styles.statusChip}>
         {loading && <ActivityIndicator size="small" color={T.accent} style={{ marginRight: 7 }} />}
@@ -536,6 +520,8 @@ export default function MapScreen() {
         onOpenTour={openTour}
         onRenameTour={renameTour}
         onDeleteTour={deleteTour}
+        headingUp={headingUp}
+        onToggleHeadingUp={toggleHeadingUp}
       />
 
       {editPoint && (
@@ -551,6 +537,12 @@ export default function MapScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: T.bg },
+  pin: {
+    width: 30, height: 30, borderRadius: 15, borderWidth: 2, borderColor: 'rgba(255,255,255,0.92)',
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 2, shadowOffset: { width: 0, height: 1 }, elevation: 3,
+  },
+  pinDot: { width: 9, height: 9, borderRadius: 4.5, backgroundColor: '#fff' },
   statusChip: {
     position: 'absolute', top: 58, alignSelf: 'center', flexDirection: 'row', alignItems: 'center',
     backgroundColor: T.surface2, borderColor: T.line, borderWidth: 1, borderRadius: 999,

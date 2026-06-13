@@ -11,3 +11,4 @@ web-build/
 *.mobileprovision
 .DS_Store
 npm-debug.*
+.env
