@@ -25,8 +25,7 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#7c8a64"
-      },
-      "package": "org.wikiwalker.app"
+      }
     }
   }
 }
