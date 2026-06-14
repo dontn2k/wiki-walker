@@ -14,6 +14,7 @@ const WIKI_HEADERS = {
   'Api-User-Agent': 'wiki-walker/1.0 (https://github.com/dontn2k/wiki-walker; tmarek@gmx.net)',
   Accept: 'application/json',
 };
+export const WIKI_UA = 'wiki-walker/1.0 (https://github.com/dontn2k/wiki-walker; tmarek@gmx.net)';
 
 // Orte mit Artikel im Umkreis (Geosearch + Kurzbeschreibung + Bild + erster Satz, in einem Aufruf).
 export async function fetchNearby(lat, lon, radius, lang = 'de') {

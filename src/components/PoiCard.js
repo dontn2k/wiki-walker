@@ -1,9 +1,10 @@
 // src/components/PoiCard.js
 import React, { useState } from 'react';
 import {
-  View, Text, Image, StyleSheet, TouchableOpacity, ScrollView, Linking,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Linking,
 } from 'react-native';
-import { fetchSummary } from '../services/wiki';
+import { Image } from 'expo-image';
+import { fetchSummary, WIKI_UA } from '../services/wiki';
 import { defaultTheme as T } from '../themes';
 
 export default function PoiCard({ poi, isSaved, onSave, onClose, lang = 'de' }) {
@@ -33,7 +34,14 @@ export default function PoiCard({ poi, isSaved, onSave, onClose, lang = 'de' }) 
           <Text style={styles.closeTxt}>×</Text>
         </TouchableOpacity>
 
-        {!!poi.thumbnail && <Image source={{ uri: poi.thumbnail }} style={styles.thumb} />}
+        {!!poi.thumbnail && (
+          <Image
+            source={{ uri: poi.thumbnail, headers: { 'User-Agent': WIKI_UA } }}
+            style={styles.thumb}
+            contentFit="cover"
+            transition={200}
+          />
+        )}
 
         <View style={styles.body}>
           <Text style={styles.title}>{poi.title}</Text>
