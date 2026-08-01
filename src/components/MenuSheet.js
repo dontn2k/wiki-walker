@@ -1,11 +1,23 @@
 // src/components/MenuSheet.js
-import React, { useState, useRef, useLayoutEffect } from 'react';
+import React, { useState, useRef, useLayoutEffect, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, Pressable, ScrollView, Alert, Linking, Animated, PanResponder } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useIAP, ErrorCode } from 'react-native-iap';
 import { defaultTheme as T } from '../themes';
 
 const APP_VERSION = '1.0.0';
-const FEEDBACK_EMAIL = 'tmarek@gmx.net';
+const FEEDBACK_EMAIL = 'wikiwalker@tonimarek.de';
+
+// Consumable In-App-Purchases - Produkt-IDs muessen 1:1 so in App Store
+// Connect UND Google Play Console angelegt werden, sonst liefert
+// fetchProducts() sie nicht zurueck. Die fallbackPrice-Texte sind nur die
+// Anzeige vor dem ersten erfolgreichen Laden - die tatsaechlichen,
+// lokalisierten Preise kommen von den Stores selbst (siehe tipPriceFor()).
+const TIP_SKUS = ['tip_tea', 'tip_coffee'];
+const TIP_INFO = {
+  tip_tea: { label: 'Tee', icon: 'tea-outline', fallbackPrice: '1 €' },
+  tip_coffee: { label: 'Kaffee', icon: 'coffee-outline', fallbackPrice: '4 €' },
+};
 
 function Row({ icon, label, sub, badge, onPress, disabled }) {
   return (
@@ -44,6 +56,53 @@ export default function MenuSheet({
   const [view, setView] = useState('menu');
   const savedList = Object.entries(saved || {});
   const tourList = tours || [];
+
+  // Freiwillige Unterstuetzung (Tee/Kaffee) via In-App-Purchase. Kein
+  // externer Spenden-Link (Ko-fi o.ae.) - das lehnen Apple/Google fuer
+  // Zahlungen innerhalb der App ab, siehe App Store Review Guideline 3.1.1.
+  const [tipSku, setTipSku] = useState(null);
+  const [tipStatus, setTipStatus] = useState('idle'); // idle | pending | done | error
+
+  const { connected, products, fetchProducts, requestPurchase, finishTransaction } = useIAP({
+    onPurchaseSuccess: async (purchase) => {
+      try {
+        await finishTransaction({ purchase, isConsumable: true });
+        setTipStatus('done');
+      } catch {
+        setTipStatus('error');
+      }
+    },
+    onPurchaseError: (error) => {
+      setTipStatus(error.code === ErrorCode.UserCancelled ? 'idle' : 'error');
+    },
+  });
+
+  useEffect(() => {
+    if (connected) fetchProducts({ skus: TIP_SKUS, type: 'in-app' });
+  }, [connected]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function tipPriceFor(sku) {
+    const p = (products || []).find((x) => x.id === sku || x.productId === sku);
+    // Feld fuer den lokalisierten Preis kann je nach react-native-iap-Version
+    // leicht anders heissen (displayPrice/localizedPrice/price) - hier
+    // defensiv mehrere Varianten probieren, sonst Fallback-Text.
+    return p?.displayPrice || p?.localizedPrice || p?.price || TIP_INFO[sku].fallbackPrice;
+  }
+
+  function confirmTip() {
+    if (!tipSku) return;
+    setTipStatus('pending');
+    requestPurchase({
+      request: { apple: { sku: tipSku }, google: { skus: [tipSku] } },
+      type: 'in-app',
+    }).catch(() => setTipStatus('idle'));
+  }
+
+  function openTipView() {
+    setTipSku(null);
+    setTipStatus('idle');
+    setView('tip');
+  }
 
   const translateY = useRef(new Animated.Value(0)).current;
   const sheetH = useRef(600);
@@ -247,6 +306,10 @@ export default function MenuSheet({
                 <MaterialCommunityIcons name="email-outline" size={18} color="#fff" />
                 <Text style={styles.aboutBtnTxt}>Feedback senden</Text>
               </TouchableOpacity>
+              <TouchableOpacity style={styles.tipEntryBtn} onPress={openTipView} activeOpacity={0.85}>
+                <MaterialCommunityIcons name="hand-coin-outline" size={18} color={T.sage} />
+                <Text style={styles.tipEntryBtnTxt}>Unterstütze freiwillig</Text>
+              </TouchableOpacity>
               <View style={styles.divider} />
               <Text style={styles.aboutAttr}>
                 Ortsdaten und Texte stammen aus Wikipedia, lizenziert unter CC BY-SA.
@@ -254,6 +317,43 @@ export default function MenuSheet({
               <TouchableOpacity onPress={openWiki}>
                 <Text style={styles.aboutLink}>de.wikipedia.org</Text>
               </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {view === 'tip' && (
+          <View>
+            <Head title="Unterstütze freiwillig" onBack={() => setView('about')} />
+            <View style={styles.aboutWrap}>
+              <Text style={styles.tipIntro}>
+                wiki-walker ist kostenlos und bleibt es. Wenn du magst, unterstütz die
+                Weiterentwicklung mit einer Kleinigkeit.
+              </Text>
+
+              <View style={styles.tipOptions}>
+                {TIP_SKUS.map((sku) => (
+                  <TouchableOpacity
+                    key={sku}
+                    style={[styles.tipCard, tipSku === sku && { borderColor: T.accent, borderWidth: 2 }]}
+                    onPress={() => setTipSku(sku)}
+                  >
+                    <MaterialCommunityIcons name={TIP_INFO[sku].icon} size={26} color={T.sage} />
+                    <Text style={styles.tipCardLabel}>{TIP_INFO[sku].label}</Text>
+                    <Text style={styles.tipCardPrice}>{tipPriceFor(sku)}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <TouchableOpacity
+                style={[styles.aboutBtn, { alignSelf: 'stretch', justifyContent: 'center', opacity: tipSku && tipStatus !== 'pending' ? 1 : 0.4 }]}
+                disabled={!tipSku || tipStatus === 'pending'}
+                onPress={confirmTip}
+              >
+                <Text style={styles.aboutBtnTxt}>{tipStatus === 'pending' ? 'Wird verarbeitet …' : 'Bestätigen'}</Text>
+              </TouchableOpacity>
+
+              {tipStatus === 'done' && <Text style={styles.tipDone}>Danke für deine Unterstützung! ☕️</Text>}
+              {tipStatus === 'error' && <Text style={styles.tipErrorTxt}>Das hat leider nicht geklappt. Versuch's gern nochmal.</Text>}
             </View>
           </View>
         )}
@@ -301,6 +401,21 @@ const styles = StyleSheet.create({
   aboutText: { fontSize: 13.5, color: T.ink, textAlign: 'center', lineHeight: 19, marginTop: 14, marginBottom: 2, paddingHorizontal: 4 },
   aboutBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: T.accent, paddingVertical: 12, paddingHorizontal: 22, borderRadius: 12, marginTop: 16 },
   aboutBtnTxt: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  tipEntryBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: T.line,
+    backgroundColor: T.surface2, paddingVertical: 11, paddingHorizontal: 20, borderRadius: 12, marginTop: 10,
+  },
+  tipEntryBtnTxt: { color: T.ink, fontSize: 14.5, fontWeight: '600' },
+  tipIntro: { fontSize: 13.5, color: T.ink, textAlign: 'center', lineHeight: 19, paddingHorizontal: 6, marginBottom: 4 },
+  tipOptions: { flexDirection: 'row', gap: 12, marginTop: 16 },
+  tipCard: {
+    borderWidth: 1, borderColor: T.line, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 20,
+    alignItems: 'center', gap: 6, backgroundColor: T.surface2, minWidth: 100,
+  },
+  tipCardLabel: { fontSize: 14, fontWeight: '700', color: T.ink },
+  tipCardPrice: { fontSize: 13, color: T.inkSoft },
+  tipDone: { fontSize: 13.5, color: T.sage, fontWeight: '600', marginTop: 14, textAlign: 'center' },
+  tipErrorTxt: { fontSize: 13, color: '#c05a4e', marginTop: 14, textAlign: 'center' },
   aboutAttr: { fontSize: 12, color: T.inkSoft, textAlign: 'center', lineHeight: 18, marginTop: 4, paddingHorizontal: 6 },
   aboutLink: { fontSize: 12.5, color: T.sage, fontWeight: '600', marginTop: 6 },
 });

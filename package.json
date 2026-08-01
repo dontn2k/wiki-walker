@@ -15,7 +15,12 @@
     "expo-status-bar": "~56.0.4",
     "react": "19.2.3",
     "react-native": "0.85.3",
-    "react-native-maps": "1.27.2"
+    "react-native-maps": "1.27.2",
+    "react-native-iap": "^15.6.2",
+    "react-native-nitro-modules": "*"
+  },
+  "overrides": {
+    "expo-font": "56.0.7"
   },
   "scripts": {
     "start": "expo start",
