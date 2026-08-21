@@ -13,10 +13,10 @@ const FEEDBACK_EMAIL = 'wikiwalker@tonimarek.de';
 // fetchProducts() sie nicht zurueck. Die fallbackPrice-Texte sind nur die
 // Anzeige vor dem ersten erfolgreichen Laden - die tatsaechlichen,
 // lokalisierten Preise kommen von den Stores selbst (siehe tipPriceFor()).
-const TIP_SKUS = ['tip_tea', 'tip_coffee'];
+const TIP_SKUS = ['tip_tea_1', 'tip_coffee_4'];
 const TIP_INFO = {
-  tip_tea: { label: 'Tee', icon: 'tea-outline', fallbackPrice: '1 €' },
-  tip_coffee: { label: 'Kaffee', icon: 'coffee-outline', fallbackPrice: '4 €' },
+  tip_tea_1: { label: 'Tee', icon: 'tea-outline', fallbackPrice: '1 €' },
+  tip_coffee_4: { label: 'Kaffee', icon: 'coffee-outline', fallbackPrice: '4 €' },
 };
 
 function Row({ icon, label, sub, badge, onPress, disabled }) {
