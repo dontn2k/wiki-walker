@@ -2,7 +2,7 @@
   "expo": {
     "name": "wiki-walker",
     "slug": "wiki-walker",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -11,7 +11,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "org.wikiwalker.app"
+      "bundleIdentifier": "org.wikiwalker.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "plugins": [
       [
