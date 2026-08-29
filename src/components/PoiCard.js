@@ -1,5 +1,5 @@
 // src/components/PoiCard.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, Linking,
 } from 'react-native';
@@ -12,6 +12,17 @@ export default function PoiCard({ poi, isSaved, onSave, onClose, lang = 'de' }) 
   const [expanded, setExpanded] = useState(false);
   const [url, setUrl] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  // Beim Wechsel auf einen anderen POI (gleiche Card-Instanz, neue Props)
+  // lokalen State zurücksetzen – sonst bleiben extract/expanded/url vom
+  // vorherigen POI stehen (Bug: Beschreibung aktualisiert sich nicht beim
+  // Wechseln zwischen POIs auf der Karte).
+  useEffect(() => {
+    setExtract(poi.extract);
+    setExpanded(false);
+    setUrl(null);
+    setLoading(false);
+  }, [poi.pageid, poi.title]);
 
   const readMore = async () => {
     setLoading(true);
