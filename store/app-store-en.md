@@ -4,7 +4,7 @@ Vorlage für die Sprache **English (U.S.)** in App Store Connect. Alle Felder si
 direkten Einfügen vorbereitet; die Zeichenzahlen stehen jeweils in Klammern und sind
 gegen die von Apple vorgegebenen Obergrenzen geprüft.
 
-Vorgeschlagene Versionsnummer für den Release: **1.1.0** (neues Funktionsmerkmal, kein
+Vorgeschlagene Versionsnummer für den Release: **2.0.2** (neues Funktionsmerkmal wie bei Historiae 1.2.0 → 2.2.0: Major-Sprung bei Zweisprachigkeit, kein
 reiner Fehlerbehebungs-Release).
 
 ---
@@ -191,7 +191,7 @@ Empfohlene Motive, in dieser Reihenfolge:
 ## 10. Ablauf in App Store Connect
 
 1. Aktualisierte Fassung der Developer Program License Agreement bestätigen, sofern noch offen.
-2. Neue Version 1.1.0 anlegen.
+2. Neue Version 2.0.2 anlegen.
 3. Unter *App-Informationen* die Lokalisierung **English (U.S.)** hinzufügen.
 4. Felder aus den Abschnitten 1 bis 6 einfügen.
 5. Englische Bildschirmfotos hochladen (Abschnitt 8).
