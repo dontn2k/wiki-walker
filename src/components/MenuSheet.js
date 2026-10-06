@@ -4,8 +4,14 @@ import { View, Text, StyleSheet, TouchableOpacity, Modal, Pressable, ScrollView,
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useIAP, ErrorCode } from 'react-native-iap';
 import { defaultTheme as T } from '../themes';
+import { useI18n, wikiHost } from '../i18n';
+import appJson from '../../app.json';
 
-const APP_VERSION = '1.0.0';
+// Versionsnummer aus app.json - das ist auch die Quelle, aus der der
+// prebuild CFBundleShortVersionString in die Info.plist schreibt.
+// Bewusst kein expo-constants: das Paket ist hier nicht installiert und
+// wuerde einen neuen Native-Build erzwingen.
+const APP_VERSION = appJson.expo.version;
 const FEEDBACK_EMAIL = 'wikiwalker@tonimarek.de';
 
 // Consumable In-App-Purchases - Produkt-IDs muessen 1:1 so in App Store
@@ -15,8 +21,8 @@ const FEEDBACK_EMAIL = 'wikiwalker@tonimarek.de';
 // lokalisierten Preise kommen von den Stores selbst (siehe tipPriceFor()).
 const TIP_SKUS = ['tip_tea_1', 'tip_coffee_4'];
 const TIP_INFO = {
-  tip_tea_1: { label: 'Tee', icon: 'tea-outline', fallbackPrice: '1 €' },
-  tip_coffee_4: { label: 'Kaffee', icon: 'coffee-outline', fallbackPrice: '4 €' },
+  tip_tea_1: { labelKey: 'tip.tea', icon: 'tea-outline', fallbackPrice: '1 €' },
+  tip_coffee_4: { labelKey: 'tip.coffee', icon: 'coffee-outline', fallbackPrice: '4 €' },
 };
 
 function Row({ icon, label, sub, badge, onPress, disabled }) {
@@ -53,6 +59,7 @@ export default function MenuSheet({
   isTracking, guideOn, onToggleTour, onToggleGuide, onPlace,
   tours, onOpenTour, onRenameTour, onDeleteTour, headingUp, onToggleHeadingUp,
 }) {
+  const { t, lang: uiLang, locale, km } = useI18n();
   const [view, setView] = useState('menu');
   const savedList = Object.entries(saved || {});
   const tourList = tours || [];
@@ -137,33 +144,32 @@ export default function MenuSheet({
 
   const fmtDate = (ms) => {
     const d = new Date(ms);
-    return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) + ' ' +
-      d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleDateString(locale, { day: '2-digit', month: '2-digit' }) + ' ' +
+      d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
   };
-  const km = (m) => (m / 1000).toFixed(1).replace('.', ',') + ' km';
-  const renameTour = (t) => {
+  const renameTour = (tour) => {
     Alert.prompt(
-      'Route umbenennen', null,
+      t('tours.renameTitle'), null,
       [
-        { text: 'Abbrechen', style: 'cancel' },
-        { text: 'Speichern', onPress: (txt) => { if (txt && txt.trim()) onRenameTour(t.id, txt.trim()); } },
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('common.save'), onPress: (txt) => { if (txt && txt.trim()) onRenameTour(tour.id, txt.trim()); } },
       ],
-      'plain-text', t.name
+      'plain-text', tour.name
     );
   };
-  const confirmDelete = (t) => {
-    Alert.alert('Route löschen?', t.name, [
-      { text: 'Abbrechen', style: 'cancel' },
-      { text: 'Löschen', style: 'destructive', onPress: () => onDeleteTour(t.id) },
+  const confirmDelete = (tour) => {
+    Alert.alert(t('tours.deleteTitle'), tour.name, [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('common.delete'), style: 'destructive', onPress: () => onDeleteTour(tour.id) },
     ]);
   };
   const sendFeedback = () => {
-    const url = 'mailto:' + FEEDBACK_EMAIL + '?subject=' + encodeURIComponent('wiki-walker Feedback');
+    const url = 'mailto:' + FEEDBACK_EMAIL + '?subject=' + encodeURIComponent(t('mail.subject'));
     Linking.openURL(url).catch(() =>
-      Alert.alert('Keine Mail-App gefunden', 'Schreib gern direkt an ' + FEEDBACK_EMAIL + '.')
+      Alert.alert(t('mail.noApp'), t('mail.noAppBody', { mail: FEEDBACK_EMAIL }))
     );
   };
-  const openWiki = () => { Linking.openURL('https://de.wikipedia.org').catch(() => {}); };
+  const openWiki = () => { Linking.openURL('https://' + wikiHost(uiLang)).catch(() => {}); };
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={close}>
@@ -175,26 +181,26 @@ export default function MenuSheet({
 
         {view === 'menu' && (
           <>
-            <Row icon="crosshairs-gps" label="Standort finden" sub="Karte auf deine Position" onPress={() => { close(); onLocate(); }} />
-            <Row icon="bookmark-outline" label="Gemerkte Orte" badge={savedList.length} onPress={() => setView('saved')} />
-            <Row icon="cog-outline" label="Einstellungen" onPress={() => setView('settings')} />
+            <Row icon="crosshairs-gps" label={t('menu.locate')} sub={t('menu.locateSub')} onPress={() => { close(); onLocate(); }} />
+            <Row icon="bookmark-outline" label={t('menu.saved')} badge={savedList.length} onPress={() => setView('saved')} />
+            <Row icon="cog-outline" label={t('menu.settings')} onPress={() => setView('settings')} />
             <View style={styles.divider} />
             <Row
               icon={isTracking ? 'stop-circle-outline' : 'map-marker-path'}
-              label={isTracking ? 'Tour beenden' : 'Tour aufzeichnen'}
-              sub={isTracking ? 'Aufzeichnung läuft' : 'Weg & vorbeigegangene Orte'}
+              label={isTracking ? t('menu.tourStop') : t('menu.tourStart')}
+              sub={isTracking ? t('menu.tourSubOn') : t('menu.tourSubOff')}
               onPress={onToggleTour}
             />
             <Row
               icon={guideOn ? 'volume-high' : 'volume-medium'}
-              label="Guide / Ansagen"
-              sub={guideOn ? 'an – meldet Orte unterwegs' : 'aus'}
+              label={t('menu.guide')}
+              sub={guideOn ? t('menu.guideOn') : t('menu.guideOff')}
               onPress={onToggleGuide}
             />
             <Row
               icon="map-marker-plus"
-              label="Eigener Punkt setzen"
-              sub="Notiz, nur auf diesem Gerät"
+              label={t('menu.place')}
+              sub={t('menu.placeSub')}
               onPress={onPlace}
             />
           </>
@@ -202,10 +208,10 @@ export default function MenuSheet({
 
         {view === 'saved' && (
           <View>
-            <Head title="Gemerkte Orte" onBack={() => setView('menu')} />
+            <Head title={t('menu.saved')} onBack={() => setView('menu')} />
             <ScrollView style={{ maxHeight: 360 }}>
               {savedList.length === 0 ? (
-                <Text style={styles.empty}>Noch nichts gemerkt.{'\n'}Tippe in einem Ort auf „Merken".</Text>
+                <Text style={styles.empty}>{t('saved.empty')}</Text>
               ) : (
                 savedList.map(([id, p]) => (
                   <View key={id} style={styles.item}>
@@ -213,10 +219,10 @@ export default function MenuSheet({
                     {!!p.description && <Text style={styles.itemSub}>{p.description}</Text>}
                     <View style={styles.itemRow}>
                       <TouchableOpacity style={styles.itemBtn} onPress={() => { close(); onShowSaved(p); }}>
-                        <Text style={styles.itemBtnTxt}>Auf Karte zeigen</Text>
+                        <Text style={styles.itemBtnTxt}>{t('saved.show')}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.itemBtn} onPress={() => onRemoveSaved(id)}>
-                        <Text style={styles.itemBtnTxt}>Entfernen</Text>
+                        <Text style={styles.itemBtnTxt}>{t('saved.remove')}</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -228,11 +234,11 @@ export default function MenuSheet({
 
         {view === 'settings' && (
           <View>
-            <Head title="Einstellungen" onBack={() => setView('menu')} />
+            <Head title={t('menu.settings')} onBack={() => setView('menu')} />
             <View style={styles.setRow}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.setLabel}>Sprache der Artikel</Text>
-                <Text style={styles.setSub}>Wikipedia-Ausgabe</Text>
+                <Text style={styles.setLabel}>{t('settings.language')}</Text>
+                <Text style={styles.setSub}>{t('settings.languageSub')}</Text>
               </View>
               <View style={styles.seg}>
                 {['de', 'en'].map((l) => (
@@ -245,19 +251,19 @@ export default function MenuSheet({
             <View style={styles.divider} />
             <Row
               icon="compass-outline"
-              label="Karte dreht mit"
-              sub={headingUp ? 'an – Karte folgt deiner Blickrichtung' : 'aus – Norden oben'}
+              label={t('settings.headingUp')}
+              sub={headingUp ? t('settings.headingUpOn') : t('settings.headingUpOff')}
               onPress={onToggleHeadingUp}
             />
             <Row
               icon="history"
-              label="Vergangene Touren"
+              label={t('settings.tours')}
               badge={tourList.length}
               onPress={() => setView('tours')}
             />
             <Row
               icon="information-outline"
-              label="Über & Feedback"
+              label={t('settings.about')}
               onPress={() => setView('about')}
             />
           </View>
@@ -265,24 +271,24 @@ export default function MenuSheet({
 
         {view === 'tours' && (
           <View>
-            <Head title="Vergangene Touren" onBack={() => setView('settings')} />
+            <Head title={t('tours.title')} onBack={() => setView('settings')} />
             <ScrollView style={{ maxHeight: 380 }}>
               {tourList.length === 0 ? (
-                <Text style={styles.empty}>Noch keine Touren aufgezeichnet.{'\n'}Starte eine über „Tour aufzeichnen".</Text>
+                <Text style={styles.empty}>{t('tours.empty')}</Text>
               ) : (
-                tourList.map((t) => (
-                  <View key={t.id} style={styles.item}>
-                    <Text style={styles.itemTitle}>{t.name || 'Route'}</Text>
-                    <Text style={styles.itemSub}>{fmtDate(t.start)} · {km(t.dist || 0)} · {(t.passed && t.passed.length) || 0} Orte</Text>
+                tourList.map((tour) => (
+                  <View key={tour.id} style={styles.item}>
+                    <Text style={styles.itemTitle}>{tour.name || t('tours.fallbackName')}</Text>
+                    <Text style={styles.itemSub}>{fmtDate(tour.start)} · {km(tour.dist || 0)} · {(tour.passed && tour.passed.length) || 0} {t('common.places')}</Text>
                     <View style={styles.itemRow}>
-                      <TouchableOpacity style={styles.itemBtn} onPress={() => { setView('menu'); onOpenTour(t); }}>
-                        <Text style={styles.itemBtnTxt}>Ansehen</Text>
+                      <TouchableOpacity style={styles.itemBtn} onPress={() => { setView('menu'); onOpenTour(tour); }}>
+                        <Text style={styles.itemBtnTxt}>{t('tours.view')}</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity style={styles.itemBtn} onPress={() => renameTour(t)}>
-                        <Text style={styles.itemBtnTxt}>Umbenennen</Text>
+                      <TouchableOpacity style={styles.itemBtn} onPress={() => renameTour(tour)}>
+                        <Text style={styles.itemBtnTxt}>{t('tours.rename')}</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity style={styles.itemBtn} onPress={() => confirmDelete(t)}>
-                        <Text style={styles.itemBtnTxt}>Löschen</Text>
+                      <TouchableOpacity style={styles.itemBtn} onPress={() => confirmDelete(tour)}>
+                        <Text style={styles.itemBtnTxt}>{t('common.delete')}</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -294,28 +300,24 @@ export default function MenuSheet({
 
         {view === 'about' && (
           <View>
-            <Head title="Über & Feedback" onBack={() => setView('settings')} />
+            <Head title={t('settings.about')} onBack={() => setView('settings')} />
             <View style={styles.aboutWrap}>
               <Text style={styles.aboutName}>wiki-walker</Text>
-              <Text style={styles.aboutVersion}>Version {APP_VERSION}</Text>
-              <Text style={styles.aboutBy}>von Toni Marek</Text>
-              <Text style={styles.aboutText}>
-                Entdecke Wikipedia-Orte in deiner Nähe – als Pins auf der Karte, beim Spazieren.
-              </Text>
+              <Text style={styles.aboutVersion}>{t('about.version', { v: APP_VERSION })}</Text>
+              <Text style={styles.aboutBy}>{t('about.by')}</Text>
+              <Text style={styles.aboutText}>{t('about.text')}</Text>
               <TouchableOpacity style={styles.aboutBtn} onPress={sendFeedback} activeOpacity={0.85}>
                 <MaterialCommunityIcons name="email-outline" size={18} color="#fff" />
-                <Text style={styles.aboutBtnTxt}>Feedback senden</Text>
+                <Text style={styles.aboutBtnTxt}>{t('about.feedback')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.tipEntryBtn} onPress={openTipView} activeOpacity={0.85}>
                 <MaterialCommunityIcons name="hand-coin-outline" size={18} color={T.sage} />
-                <Text style={styles.tipEntryBtnTxt}>Unterstütze freiwillig</Text>
+                <Text style={styles.tipEntryBtnTxt}>{t('about.support')}</Text>
               </TouchableOpacity>
               <View style={styles.divider} />
-              <Text style={styles.aboutAttr}>
-                Ortsdaten und Texte stammen aus Wikipedia, lizenziert unter CC BY-SA.
-              </Text>
+              <Text style={styles.aboutAttr}>{t('about.attr')}</Text>
               <TouchableOpacity onPress={openWiki}>
-                <Text style={styles.aboutLink}>de.wikipedia.org</Text>
+                <Text style={styles.aboutLink}>{wikiHost(uiLang)}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -323,12 +325,9 @@ export default function MenuSheet({
 
         {view === 'tip' && (
           <View>
-            <Head title="Unterstütze freiwillig" onBack={() => setView('about')} />
+            <Head title={t('tip.title')} onBack={() => setView('about')} />
             <View style={styles.aboutWrap}>
-              <Text style={styles.tipIntro}>
-                wiki-walker ist kostenlos und bleibt es. Wenn du magst, unterstütz die
-                Weiterentwicklung mit einer Kleinigkeit.
-              </Text>
+              <Text style={styles.tipIntro}>{t('tip.intro')}</Text>
 
               <View style={styles.tipOptions}>
                 {TIP_SKUS.map((sku) => (
@@ -338,7 +337,7 @@ export default function MenuSheet({
                     onPress={() => setTipSku(sku)}
                   >
                     <MaterialCommunityIcons name={TIP_INFO[sku].icon} size={26} color={T.sage} />
-                    <Text style={styles.tipCardLabel}>{TIP_INFO[sku].label}</Text>
+                    <Text style={styles.tipCardLabel}>{t(TIP_INFO[sku].labelKey)}</Text>
                     <Text style={styles.tipCardPrice}>{tipPriceFor(sku)}</Text>
                   </TouchableOpacity>
                 ))}
@@ -349,11 +348,11 @@ export default function MenuSheet({
                 disabled={!tipSku || tipStatus === 'pending'}
                 onPress={confirmTip}
               >
-                <Text style={styles.aboutBtnTxt}>{tipStatus === 'pending' ? 'Wird verarbeitet …' : 'Bestätigen'}</Text>
+                <Text style={styles.aboutBtnTxt}>{tipStatus === 'pending' ? t('tip.pending') : t('tip.confirm')}</Text>
               </TouchableOpacity>
 
-              {tipStatus === 'done' && <Text style={styles.tipDone}>Danke für deine Unterstützung! ☕️</Text>}
-              {tipStatus === 'error' && <Text style={styles.tipErrorTxt}>Das hat leider nicht geklappt. Versuch's gern nochmal.</Text>}
+              {tipStatus === 'done' && <Text style={styles.tipDone}>{t('tip.done')}</Text>}
+              {tipStatus === 'error' && <Text style={styles.tipErrorTxt}>{t('tip.error')}</Text>}
             </View>
           </View>
         )}

@@ -5,8 +5,10 @@ import {
   KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { defaultTheme as T } from '../themes';
+import { useI18n } from '../i18n';
 
 export default function PointForm({ point, onSave, onDelete, onClose }) {
+  const { t } = useI18n();
   const [title, setTitle] = useState(point.title || '');
   const [note, setNote] = useState(point.note || '');
 
@@ -19,17 +21,17 @@ export default function PointForm({ point, onSave, onDelete, onClose }) {
         pointerEvents="box-none"
       >
         <View style={styles.card}>
-          <Text style={styles.h}>Eigener Punkt</Text>
+          <Text style={styles.h}>{t('point.title')}</Text>
           <TextInput
             style={styles.input}
-            placeholder="Titel (z. B. Gitter am Marktplatz)"
+            placeholder={t('point.titlePlaceholder')}
             placeholderTextColor={T.inkSoft}
             value={title}
             onChangeText={setTitle}
           />
           <TextInput
             style={[styles.input, styles.area]}
-            placeholder="Notiz fürs spätere Nachschauen …"
+            placeholder={t('point.notePlaceholder')}
             placeholderTextColor={T.inkSoft}
             value={note}
             onChangeText={setNote}
@@ -40,11 +42,11 @@ export default function PointForm({ point, onSave, onDelete, onClose }) {
               style={[styles.btn, styles.save]}
               onPress={() => onSave({ ...point, title: title.trim(), note: note.trim() })}
             >
-              <Text style={styles.saveTxt}>Speichern</Text>
+              <Text style={styles.saveTxt}>{t('common.save')}</Text>
             </TouchableOpacity>
             {!point.isNew && (
               <TouchableOpacity style={styles.btn} onPress={() => onDelete(point.id)}>
-                <Text style={styles.btnTxt}>Löschen</Text>
+                <Text style={styles.btnTxt}>{t('common.delete')}</Text>
               </TouchableOpacity>
             )}
           </View>

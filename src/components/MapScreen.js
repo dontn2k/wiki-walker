@@ -17,6 +17,7 @@ import RecordingBar from './RecordingBar';
 import TourSummary from './TourSummary';
 import SplashOverlay from './SplashOverlay';
 import { defaultTheme as T } from '../themes';
+import { useI18n, translate } from '../i18n';
 
 const DEFAULT_REGION = { latitude: 47.66119, longitude: 10.347, latitudeDelta: 0.06, longitudeDelta: 0.06 };
 const GOLD = '#cf9a40';
@@ -39,12 +40,12 @@ function bearing(a, b) {
   const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
   return (Math.atan2(y, x) * toD + 360) % 360;
 }
-function dirWord(rel, de) {
+function dirWord(rel, lang) {
   const a = ((rel % 360) + 540) % 360 - 180;
   const abs = Math.abs(a);
-  if (abs <= 35) return de ? 'Vor dir' : 'Ahead of you';
-  if (abs >= 145) return de ? 'Hinter dir' : 'Behind you';
-  return a > 0 ? (de ? 'Rechts von dir' : 'To your right') : (de ? 'Links von dir' : 'To your left');
+  if (abs <= 35) return translate(lang, 'guide.ahead');
+  if (abs >= 145) return translate(lang, 'guide.behind');
+  return a > 0 ? translate(lang, 'guide.right') : translate(lang, 'guide.left');
 }
 
 // Pin-Komponente: farbiger Kreis mit Kategorie-Symbol.
@@ -85,6 +86,9 @@ function MyPin({ point, onPress }) {
 }
 
 export default function MapScreen() {
+  // Sprache kommt aus dem LangProvider (App.js) und steuert Oberflaeche,
+  // Wikipedia-Ausgabe und Sprachausgabe gleichzeitig.
+  const { lang, setLang, t } = useI18n();
   const mapRef = useRef(null);
   const reqId = useRef(0);
   const lastMarkerTap = useRef(0);
@@ -97,11 +101,10 @@ export default function MapScreen() {
   const [selected, setSelected] = useState(null);
   const [saved, setSaved] = useState({});
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState('bereit');
+  const [status, setStatus] = useState({ k: 'status.ready' });
   const [userLoc, setUserLoc] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [lang, setLang] = useState('de');
-  const langRef = useRef('de');
+  const langRef = useRef(lang);
 
   const [myPoints, setMyPoints] = useState([]);
   const [placing, setPlacing] = useState(false);
@@ -139,16 +142,16 @@ export default function MapScreen() {
     const radius = Math.min(Math.max(Math.round((region.latitudeDelta / 2) * 111000), 200), 10000);
     const id = ++reqId.current;
     setLoading(true);
-    setStatus('suche Orte …');
+    setStatus({ k: 'status.searching' });
     try {
       const list = await fetchNearby(region.latitude, region.longitude, radius, langRef.current);
       if (id !== reqId.current) return;
       const withCat = list.map((p) => ({ ...p, cat: categorize(`${p.description} ${p.extract}`) }));
       setPois(withCat);
       poisRef.current = withCat;
-      setStatus(withCat.length ? `${withCat.length} Orte in Sicht` : 'hier nichts gefunden');
+      setStatus(withCat.length ? { k: 'status.found', p: { n: withCat.length } } : { k: 'status.none' });
     } catch (e) {
-      if (id === reqId.current) setStatus('Daten nicht erreichbar');
+      if (id === reqId.current) setStatus({ k: 'status.offline' });
     } finally {
       if (id === reqId.current) setLoading(false);
     }
@@ -177,6 +180,10 @@ export default function MapScreen() {
     };
   }, [loadForRegion]);
 
+  // langRef spiegelt die Sprache fuer die asynchronen Callbacks (Guide,
+  // Standort-Watcher), die nicht bei jedem Render neu gebunden werden.
+  useEffect(() => { langRef.current = lang; }, [lang]);
+
   // ---------- Karten-Ereignisse ----------
   const onRegionChange = (region) => {
     regionRef.current = region;
@@ -198,9 +205,9 @@ export default function MapScreen() {
 
   // ---------- Standort ----------
   const locate = async () => {
-    setStatus('suche Standort …');
+    setStatus({ k: 'status.locating' });
     const { status: perm } = await Location.requestForegroundPermissionsAsync();
-    if (perm !== 'granted') { setStatus('Standort verweigert'); return; }
+    if (perm !== 'granted') { setStatus({ k: 'status.locationDenied' }); return; }
     const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
     const loc = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
     setUserLoc(loc);
@@ -237,13 +244,13 @@ export default function MapScreen() {
   const removeSaved = (id) =>
     setSaved((prev) => { const n = { ...prev }; delete n[id]; storage.setItem('wikiwalker.saved', n); return n; });
 
-  const changeLang = (l) => { setLang(l); langRef.current = l; loadForRegion(regionRef.current); };
+  const changeLang = (l) => { setLang(l); langRef.current = l; loadForRegion(regionRef.current || DEFAULT_REGION); };
 
   // ---------- Eigene Punkte ----------
-  const startPlacing = () => { setPlacing(true); setStatus('Tippe auf die Karte für einen Punkt'); };
+  const startPlacing = () => { setPlacing(true); setStatus({ k: 'status.tapMap' }); };
   const addPointAt = (coord) => {
     setPlacing(false);
-    setStatus('bereit');
+    setStatus({ k: 'status.ready' });
     setEditPoint({ id: 'p' + Date.now(), lat: coord.latitude, lon: coord.longitude, title: '', note: '', isNew: true });
   };
   const savePoint = (pt) => {
@@ -275,7 +282,7 @@ export default function MapScreen() {
   };
   const startTracking = async () => {
     const { status: perm } = await Location.requestForegroundPermissionsAsync();
-    if (perm !== 'granted') { setStatus('Standort verweigert'); return; }
+    if (perm !== 'granted') { setStatus({ k: 'status.locationDenied' }); return; }
     trackPts.current = []; trackDist.current = 0; passedRef.current = new Map(); trackStart.current = Date.now();
     setTrackCoords([]); setRecInfo({ secs: 0, dist: 0 }); setTracking(true);
     activateKeepAwakeAsync().catch(() => {});
@@ -361,16 +368,16 @@ export default function MapScreen() {
     announcedRef.current.add(poi.pageid);
     busyRef.current = true;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    const de = langRef.current === 'de';
-    let lead = de ? 'In der Nähe ist' : 'Nearby is';
+    const l = langRef.current;
+    let lead = translate(l, 'guide.nearby');
     if (headingRef.current != null && here) {
       const rel = bearing(here, { latitude: poi.lat, longitude: poi.lon }) - headingRef.current;
-      lead = dirWord(rel, de);
+      lead = dirWord(rel, l);
     }
     Speech.stop();
     Speech.speak(
-      de ? `${lead}: ${poi.title}. Möchtest du mehr wissen?` : `${lead}: ${poi.title}. Want to know more?`,
-      { language: de ? 'de-DE' : 'en-US' }
+      translate(l, 'guide.askSpeech', { lead, title: poi.title }),
+      { language: l === 'de' ? 'de-DE' : 'en-US' }
     );
     setAsk(poi);
     if (askTimer.current) clearTimeout(askTimer.current);
@@ -390,12 +397,12 @@ export default function MapScreen() {
   };
   const startGuide = async () => {
     const { status: perm } = await Location.requestForegroundPermissionsAsync();
-    if (perm !== 'granted') { setStatus('Standort verweigert'); return; }
+    if (perm !== 'granted') { setStatus({ k: 'status.locationDenied' }); return; }
     setGuideOn(true); guideOnRef.current = true; announcedRef.current = new Set(); busyRef.current = false;
-    const de = langRef.current === 'de';
+    const l = langRef.current;
     Speech.speak(
-      de ? 'Guide aktiv. Ich melde mich, wenn etwas in der Nähe ist.' : 'Guide active. I will let you know when something is nearby.',
-      { language: de ? 'de-DE' : 'en-US' }
+      translate(l, 'guide.active'),
+      { language: l === 'de' ? 'de-DE' : 'en-US' }
     );
     guideSub.current = await Location.watchPositionAsync(
       { accuracy: Location.Accuracy.High, distanceInterval: 10, timeInterval: 3000 },
@@ -465,7 +472,7 @@ export default function MapScreen() {
 
       <View style={styles.statusChip}>
         {loading && <ActivityIndicator size="small" color={T.accent} style={{ marginRight: 7 }} />}
-        <Text style={styles.statusText}>{placing ? 'Tippe auf die Karte …' : status}</Text>
+        <Text style={styles.statusText}>{placing ? t('status.tapMapShort') : t(status.k, status.p)}</Text>
       </View>
 
       {tracking && <RecordingBar secs={recInfo.secs} dist={recInfo.dist} onStop={stopTracking} />}
@@ -490,13 +497,13 @@ export default function MapScreen() {
       {ask && (
         <View style={styles.ask}>
           <Text style={styles.askTitle} numberOfLines={1}>{ask.title}</Text>
-          <Text style={styles.askSub}>{lang === 'de' ? 'Möchtest du mehr wissen?' : 'Want to know more?'}</Text>
+          <Text style={styles.askSub}>{t('ask.more')}</Text>
           <View style={styles.askRow}>
             <TouchableOpacity style={[styles.askBtn, styles.askYes]} onPress={answerYes}>
-              <Text style={styles.askYesTxt}>{lang === 'de' ? 'Ja, erzähl' : 'Yes'}</Text>
+              <Text style={styles.askYesTxt}>{t('ask.yes')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.askBtn} onPress={answerNo}>
-              <Text style={styles.askTxt}>{lang === 'de' ? 'Nein' : 'No'}</Text>
+              <Text style={styles.askTxt}>{t('ask.no')}</Text>
             </TouchableOpacity>
           </View>
         </View>

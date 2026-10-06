@@ -6,8 +6,10 @@ import {
 import { Image } from 'expo-image';
 import { fetchSummary, WIKI_UA } from '../services/wiki';
 import { defaultTheme as T } from '../themes';
+import { useI18n } from '../i18n';
 
 export default function PoiCard({ poi, isSaved, onSave, onClose, lang = 'de' }) {
+  const { t } = useI18n();
   const [extract, setExtract] = useState(poi.extract);
   const [expanded, setExpanded] = useState(false);
   const [url, setUrl] = useState(null);
@@ -59,13 +61,13 @@ export default function PoiCard({ poi, isSaved, onSave, onClose, lang = 'de' }) 
           {!!poi.description && <Text style={styles.desc}>{poi.description}</Text>}
 
           <ScrollView style={expanded ? styles.exScroll : undefined} nestedScrollEnabled>
-            <Text style={styles.extract}>{extract || 'Kein Vorschautext verfügbar.'}</Text>
+            <Text style={styles.extract}>{extract || t('poi.noPreview')}</Text>
           </ScrollView>
 
           <View style={styles.row}>
             {!expanded ? (
               <TouchableOpacity style={styles.btn} onPress={readMore} activeOpacity={0.8}>
-                <Text style={styles.btnTxt}>{loading ? 'lädt …' : 'Mehr lesen'}</Text>
+                <Text style={styles.btnTxt}>{loading ? t('poi.loading') : t('poi.readMore')}</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
@@ -73,7 +75,7 @@ export default function PoiCard({ poi, isSaved, onSave, onClose, lang = 'de' }) 
                 onPress={() => url && Linking.openURL(url)}
                 activeOpacity={0.8}
               >
-                <Text style={styles.btnTxt}>Auf Wikipedia</Text>
+                <Text style={styles.btnTxt}>{t('poi.onWikipedia')}</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity
@@ -82,7 +84,7 @@ export default function PoiCard({ poi, isSaved, onSave, onClose, lang = 'de' }) 
               activeOpacity={0.8}
             >
               <Text style={[styles.btnTxt, isSaved && styles.btnTxtOn]}>
-                {isSaved ? 'Gemerkt ✓' : 'Merken'}
+                {isSaved ? t('poi.saved') : t('poi.save')}
               </Text>
             </TouchableOpacity>
           </View>

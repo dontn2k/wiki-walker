@@ -3,9 +3,9 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, Pressable, ScrollView } from 'react-native';
 import { CATEGORY_COLORS } from '../data/categories';
 import { defaultTheme as T } from '../themes';
+import { useI18n } from '../i18n';
 
 const fmt = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-const km = (m) => (m / 1000).toFixed(1).replace('.', ',') + ' km';
 
 function Stat({ n, l }) {
   return (
@@ -17,22 +17,23 @@ function Stat({ n, l }) {
 }
 
 export default function TourSummary({ tour, onClose }) {
+  const { t, km } = useI18n();
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
       <View style={styles.sheet}>
         <View style={styles.handle} />
-        <Text style={styles.h}>{tour.name || 'Deine Tour'}</Text>
+        <Text style={styles.h}>{tour.name || t('tour.yourTour')}</Text>
 
         <View style={styles.stats}>
-          <Stat n={fmt(tour.secs)} l="Dauer" />
-          <Stat n={km(tour.dist)} l="Strecke" />
-          <Stat n={String(tour.passed.length)} l="Orte" />
+          <Stat n={fmt(tour.secs)} l={t('tour.duration')} />
+          <Stat n={km(tour.dist)} l={t('tour.distance')} />
+          <Stat n={String(tour.passed.length)} l={t('tour.places')} />
         </View>
 
         <ScrollView style={{ maxHeight: 320 }}>
           {tour.passed.length === 0 ? (
-            <Text style={styles.empty}>Unterwegs wurden keine Artikel-Orte erfasst.</Text>
+            <Text style={styles.empty}>{t('tour.emptyList')}</Text>
           ) : (
             tour.passed.map((p) => (
               <View key={p.pageid} style={styles.row}>
@@ -47,7 +48,7 @@ export default function TourSummary({ tour, onClose }) {
         </ScrollView>
 
         <TouchableOpacity style={styles.close} onPress={onClose}>
-          <Text style={styles.closeTxt}>Schließen</Text>
+          <Text style={styles.closeTxt}>{t('common.close')}</Text>
         </TouchableOpacity>
       </View>
     </Modal>

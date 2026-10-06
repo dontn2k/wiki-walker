@@ -6,6 +6,10 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "locales": {
+      "de": "./locales/de.json",
+      "en": "./locales/en.json"
+    },
     "splash": {
       "backgroundColor": "#fffaf0"
     },
@@ -13,7 +17,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "org.wikiwalker.app",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleDevelopmentRegion": "de",
+        "CFBundleLocalizations": ["de", "en"]
       }
     },
     "plugins": [

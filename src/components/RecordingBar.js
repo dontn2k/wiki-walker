@@ -3,11 +3,12 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { defaultTheme as T } from '../themes';
+import { useI18n } from '../i18n';
 
 const fmt = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-const km = (m) => (m / 1000).toFixed(1).replace('.', ',') + ' km';
 
 export default function RecordingBar({ secs, dist, onStop }) {
+  const { km } = useI18n();
   return (
     <View style={styles.bar}>
       <View style={styles.dot} />

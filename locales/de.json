@@ -1,0 +1,4 @@
+{
+  "CFBundleDisplayName": "wiki-walker",
+  "NSLocationWhenInUseUsageDescription": "wiki-walker nutzt deinen Standort, um Orte in deiner Nähe zu finden."
+}
